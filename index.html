@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lotus Flower Craft — Ургамал, цэцгийн дэлгүүр</title>
+  <meta name="description" content="Гэрийн ургамал, өөрсдөө ургуулсан шүүслэг, кактус, зохиомж, улирлын ургамал болон баглаа цэцэг.">
+  <link rel="icon" href="assets/Lotus_flow_craft_logo_new.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#top" aria-label="Нүүр хуудас">
+        <img src="assets/Lotus_flow_craft_logo_new.svg" alt="" width="44" height="44">
+        <span class="brand-name">Lotus Flower Craft</span>
+      </a>
+      <nav class="main-nav" aria-label="Үндсэн цэс">
+        <a href="#categories">Ангилал</a>
+        <a href="#shop">Дэлгүүр</a>
+        <a href="#about">Бидний тухай</a>
+        <a href="#contact">Холбоо барих</a>
+      </nav>
+      <button class="cart-button" type="button" data-open-cart aria-label="Сагс нээх">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 7h12l-1.2 11.1a2 2 0 0 1-2 1.9H9.2a2 2 0 0 1-2-1.9L6 7Z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9 7a3 3 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+        <span class="cart-count" data-cart-count>0</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">Ургамал · Зохиомж · Баглаа</p>
+          <h1>Гэр тань амьд, ногоон байг</h1>
+          <p class="lead">Гэрийн ургамал, өөрсдөө ургуулсан шүүслэг, кактусын бэбинүүд, гар урлалын зохиомж болон баглаа цэцэг — нэг дороос.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#shop">Дэлгүүр үзэх</a>
+            <a class="btn btn-ghost" href="#custom">Захиалгат зохиомж</a>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <img src="assets/Lotus_flow_craft_logo_new.svg" alt="">
+        </div>
+      </div>
+    </section>
+
+    <section id="categories" class="section">
+      <div class="container">
+        <h2 class="section-title">Ангилал</h2>
+        <div class="category-grid" data-categories></div>
+      </div>
+    </section>
+
+    <section id="shop" class="section section-alt">
+      <div class="container">
+        <div class="shop-head">
+          <h2 class="section-title">Бүтээгдэхүүн</h2>
+          <div class="shop-tools">
+            <input type="search" class="input" placeholder="Хайх…" data-search aria-label="Бүтээгдэхүүн хайх">
+            <select class="input" data-sort aria-label="Эрэмбэлэх">
+              <option value="default">Онцлох</option>
+              <option value="price-asc">Үнэ: багаас их</option>
+              <option value="price-desc">Үнэ: ихээс бага</option>
+              <option value="name">Нэрээр</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-chips" role="tablist" data-filters></div>
+        <div class="product-grid" data-products></div>
+        <p class="empty" data-empty hidden>Илэрц олдсонгүй.</p>
+      </div>
+    </section>
+
+    <section id="custom" class="section">
+      <div class="container custom-band">
+        <div>
+          <h2 class="section-title">Захиалгат зохиомж, баглаа</h2>
+          <p>Оффис, гэр, арга хэмжээнд зориулсан зохиомж, суулгалт эсвэл тусгай баглаа хэрэгтэй юу? Хүсэлтээ хэлээрэй — бид таны орон зай, төсөвт тохируулан бүтээж өгнө.</p>
+          <p class="tags">#зохиомж #хаданкактус #намаршил #алтанмод</p>
+        </div>
+        <a class="btn btn-primary" href="#contact">Холбогдох</a>
+      </div>
+    </section>
+
+    <section id="about" class="section section-alt">
+      <div class="container about">
+        <div>
+          <h2 class="section-title">Бидний тухай</h2>
+          <p>Lotus Flower Craft нь ургамалд дурлагсдын жижиг цех. Шүүслэг, кактусынхаа бэбинүүдийг бид өөрсдөө ургуулж, ургамал бүрийг эрүүл, бэлэн байдалд нь хүргэдэг.</p>
+        </div>
+        <ul class="features">
+          <li><strong>Өөрсдөө ургуулсан</strong><span>Шүүслэг, кактусын суулгацыг өөрсдөө ургуулдаг.</span></li>
+          <li><strong>Гар урлалын зохиомж</strong><span>Зохиомж бүр давтагдашгүй, гараар хийгдсэн.</span></li>
+          <li><strong>Арчилгааны зөвлөгөө</strong><span>Ургамал бүрд арчилгааны заавар дагалдана.</span></li>
+          <li><strong>Хүргэлт</strong><span>Улаанбаатар хот дотор хүргэж өгнө.</span></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer id="contact" class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <a class="brand" href="#top">
+          <img src="assets/Lotus_flow_craft_logo_new.svg" alt="" width="40" height="40">
+          <span class="brand-name">Lotus Flower Craft</span>
+        </a>
+        <p class="muted" data-shop="tagline"></p>
+      </div>
+      <div>
+        <h3>Холбоо барих</h3>
+        <ul class="contact-list">
+          <li>Утас: <a data-shop-link="phone"></a></li>
+          <li>И-мэйл: <a data-shop-link="email"></a></li>
+          <li>Хаяг: <span data-shop="address"></span></li>
+          <li>Цагийн хуваарь: <span data-shop="hours"></span></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Сошиал</h3>
+        <ul class="contact-list">
+          <li><a data-shop-href="facebook" target="_blank" rel="noopener">Facebook</a></li>
+          <li><a data-shop-href="instagram" target="_blank" rel="noopener">Instagram</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="container copyright">© <span data-year></span> Lotus Flower Craft</div>
+  </footer>
+
+  <!-- Бүтээгдэхүүний дэлгэрэнгүй -->
+  <dialog class="modal" data-product-modal>
+    <button class="modal-close" type="button" data-close aria-label="Хаах">×</button>
+    <div class="product-detail" data-product-detail></div>
+  </dialog>
+
+  <!-- Сагс -->
+  <div class="drawer-backdrop" data-cart-backdrop hidden></div>
+  <aside class="drawer" data-cart aria-label="Сагс" aria-hidden="true">
+    <div class="drawer-head">
+      <h2>Сагс</h2>
+      <button class="modal-close" type="button" data-close-cart aria-label="Хаах">×</button>
+    </div>
+    <div class="drawer-body" data-cart-items></div>
+    <div class="drawer-foot">
+      <div class="summary-row"><span>Дүн</span><strong data-cart-subtotal>0₮</strong></div>
+      <div class="summary-row muted"><span>Хүргэлт</span><span data-cart-delivery>—</span></div>
+      <div class="summary-row total"><span>Нийт</span><strong data-cart-total>0₮</strong></div>
+      <p class="hint" data-delivery-hint></p>
+      <button class="btn btn-primary btn-block" type="button" data-checkout disabled>Захиалга өгөх</button>
+    </div>
+  </aside>
+
+  <!-- Захиалга -->
+  <dialog class="modal" data-checkout-modal>
+    <button class="modal-close" type="button" data-close aria-label="Хаах">×</button>
+    <form class="checkout" data-checkout-form novalidate>
+      <h2>Захиалгын мэдээлэл</h2>
+      <div class="form-grid">
+        <label>Нэр<input class="input" name="name" required autocomplete="name"></label>
+        <label>Утас<input class="input" name="phone" required inputmode="tel" autocomplete="tel" pattern="[0-9+\s\-]{8,}"></label>
+        <label class="span-2">Хаяг<input class="input" name="address" required autocomplete="street-address" placeholder="Дүүрэг, хороо, байр, тоот"></label>
+        <label>Хүргэх огноо<input class="input" type="date" name="date" required></label>
+        <label>Төлбөрийн хэлбэр
+          <select class="input" name="payment">
+            <option>Дансаар шилжүүлэх</option>
+            <option>QPay</option>
+            <option>Бэлнээр (хүргэлтээр)</option>
+          </select>
+        </label>
+        <label class="span-2">Нэмэлт тайлбар<textarea class="input" name="note" rows="3" placeholder="Баглааны карт дээрх бичвэр, захиалгат зохиомжийн хүсэлт гэх мэт"></textarea></label>
+      </div>
+      <div class="checkout-summary" data-checkout-summary></div>
+      <p class="form-error" data-form-error hidden></p>
+      <button class="btn btn-primary btn-block" type="submit">Захиалга баталгаажуулах</button>
+    </form>
+    <div class="confirmation" data-confirmation hidden></div>
+  </dialog>
+
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
