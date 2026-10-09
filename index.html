@@ -3,8 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- meta:start -->
   <title>Lotus Flower Craft — Ургамал, цэцгийн дэлгүүр</title>
   <meta name="description" content="Гэрийн ургамал, өөрсдөө ургуулсан шүүслэг, кактус, зохиомж, улирлын ургамал болон баглаа цэцэг.">
+  <meta property="og:title" content="Lotus Flower Craft — Ургамал, цэцгийн дэлгүүр">
+  <meta property="og:description" content="Гэрийн ургамал, өөрсдөө ургуулсан шүүслэг, кактус, зохиомж, улирлын ургамал болон баглаа цэцэг.">
+  <meta property="og:type" content="website">
+  <!-- meta:end -->
+  <meta name="theme-color" content="#3f6b4f">
   <link rel="icon" href="assets/Lotus_flow_craft_logo_new.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +29,15 @@
         <a href="#shop">Дэлгүүр</a>
         <a href="#about">Бидний тухай</a>
         <a href="#contact">Холбоо барих</a>
+        <button class="link" type="button" data-open-track>Захиалга хянах</button>
       </nav>
+      <button class="icon-button track-icon" type="button" data-open-track aria-label="Захиалга хянах">
+        <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7" cy="17.5" r="1.7" fill="#fff" stroke="currentColor" stroke-width="1.5"/><circle cx="17" cy="17.5" r="1.7" fill="#fff" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="icon-button" type="button" data-show-wishlist aria-label="Хадгалсан бараа">
+        <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span class="cart-count" data-wish-count hidden>0</span>
+      </button>
       <button class="cart-button" type="button" data-open-cart aria-label="Сагс нээх">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 7h12l-1.2 11.1a2 2 0 0 1-2 1.9H9.2a2 2 0 0 1-2-1.9L6 7Z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9 7a3 3 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
         <span class="cart-count" data-cart-count>0</span>
@@ -122,6 +136,12 @@
         </ul>
       </div>
       <div>
+        <h3>Мэдээлэл</h3>
+        <ul class="contact-list" data-page-links>
+          <li><button class="link" type="button" data-open-track>Захиалга хянах</button></li>
+        </ul>
+      </div>
+      <div>
         <h3>Сошиал</h3>
         <ul class="contact-list">
           <li><a data-shop-href="facebook" target="_blank" rel="noopener">Facebook</a></li>
@@ -160,17 +180,32 @@
     <button class="modal-close" type="button" data-close aria-label="Хаах">×</button>
     <form class="checkout" data-checkout-form novalidate>
       <h2>Захиалгын мэдээлэл</h2>
+      <fieldset class="choice-group" data-fulfillment-group>
+        <legend>Хүлээн авах хэлбэр</legend>
+        <div class="choice-row">
+          <label class="choice"><input type="radio" name="fulfillment" value="delivery" checked><span><strong>Хүргүүлэх</strong><small data-delivery-info></small></span></label>
+          <label class="choice"><input type="radio" name="fulfillment" value="pickup"><span><strong>Очиж авах</strong><small data-pickup-info></small></span></label>
+        </div>
+      </fieldset>
       <div class="form-grid">
         <label>Нэр<input class="input" name="name" required autocomplete="name"></label>
         <label>Утас<input class="input" name="phone" required inputmode="tel" autocomplete="tel" pattern="[0-9+\s\-]{8,}"></label>
-        <label class="span-2">Хаяг<input class="input" name="address" required autocomplete="street-address" placeholder="Дүүрэг, хороо, байр, тоот"></label>
-        <label>Хүргэх огноо<input class="input" type="date" name="date" required></label>
+        <label class="span-2" data-address-field>Хаяг<input class="input" name="address" required autocomplete="street-address" placeholder="Дүүрэг, хороо, байр, тоот"></label>
+        <label><span data-date-label>Хүргэх огноо</span><input class="input" type="date" name="date" required></label>
         <label class="span-2">Нэмэлт тайлбар<textarea class="input" name="note" rows="3" placeholder="Баглааны карт дээрх бичвэр, захиалгат зохиомжийн хүсэлт гэх мэт"></textarea></label>
       </div>
       <fieldset class="payment-methods">
         <legend>Төлбөрийн хэлбэр</legend>
         <div data-payment-methods></div>
       </fieldset>
+      <div class="promo" data-promo hidden>
+        <label for="promo-code">Промо код</label>
+        <div class="promo-row">
+          <input class="input" id="promo-code" data-promo-input autocomplete="off" placeholder="Жишээ: LOTUS10">
+          <button class="btn btn-ghost" type="button" data-promo-apply>Хэрэглэх</button>
+        </div>
+        <p class="promo-msg" data-promo-msg></p>
+      </div>
       <div class="checkout-summary" data-checkout-summary></div>
       <p class="form-error" data-form-error hidden></p>
       <button class="btn btn-primary btn-block" type="submit">Захиалга баталгаажуулах</button>
@@ -178,9 +213,31 @@
     <div class="confirmation" data-confirmation hidden></div>
   </dialog>
 
+  <!-- Захиалга хянах -->
+  <dialog class="modal modal-sm" data-track-modal>
+    <button class="modal-close" type="button" data-close aria-label="Хаах">×</button>
+    <div class="checkout">
+      <h2>Захиалга хянах</h2>
+      <form class="form-grid" data-track-form>
+        <label>Захиалгын дугаар<input class="input" name="number" required placeholder="LFC-XXXXXXX" autocomplete="off"></label>
+        <label>Утасны дугаар<input class="input" name="phone" required inputmode="tel" autocomplete="tel"></label>
+        <button class="btn btn-primary span-2" type="submit">Хайх</button>
+      </form>
+      <div data-track-result></div>
+      <div data-my-orders></div>
+    </div>
+  </dialog>
+
+  <!-- Мэдээллийн хуудас -->
+  <dialog class="modal modal-sm" data-page-modal>
+    <button class="modal-close" type="button" data-close aria-label="Хаах">×</button>
+    <article class="checkout page-body" data-page-body></article>
+  </dialog>
+
   <div class="toast" data-toast role="status" aria-live="polite"></div>
 
   <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

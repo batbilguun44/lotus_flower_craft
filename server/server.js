@@ -1,22 +1,25 @@
-// Lotus Flower Craft — статик сайт + захиалга, төлбөрийн API.
-// Ажиллуулах: node server/server.js   (Node 18+, нэмэлт сан шаардлагагүй)
+// Lotus Flower Craft — дэлгүүр, админ панел, захиалга, төлбөрийн сервер.
+// Ажиллуулах: npm start   (Node 18+, нэмэлт сан шаардлагагүй)
 
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
-const vm = require("node:vm");
-const crypto = require("node:crypto");
 
 const ROOT = path.resolve(__dirname, "..");
 loadEnv(path.join(ROOT, ".env"));
 
+const store = require("./store");
+const orders = require("./orders");
+const admin = require("./admin");
 const qpay = require("./payments/qpay");
 const golomt = require("./payments/golomt");
+const notify = require("./notify");
 
 const PORT = Number(process.env.PORT || 8000);
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
-const ORDERS_FILE = path.join(ROOT, "data", "orders.json");
+const SECURE = PUBLIC_URL.startsWith("https://");
 const STATIC_DIRS = ["css", "js", "assets"];
+const STATIC_FILES = ["index.html", "admin.html"];
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -26,6 +29,8 @@ const MIME = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
+  ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
 };
 
 function loadEnv(file) {
@@ -36,182 +41,101 @@ function loadEnv(file) {
   }
 }
 
-// Үнийг хэрэглэгчээс биш, js/data.js-ээс тооцно — нэг эх сурвалж.
-function loadCatalog() {
-  const code = fs.readFileSync(path.join(ROOT, "js", "data.js"), "utf8");
-  return vm.runInNewContext(`${code};({ SHOP, PRODUCTS, PAYMENT_METHODS })`);
-}
-
-// ---------- Захиалгын сан (JSON файл) ----------
-
-function readOrders() {
-  try {
-    return JSON.parse(fs.readFileSync(ORDERS_FILE, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function saveOrder(order) {
-  const orders = readOrders();
-  orders[order.number] = order;
-  fs.mkdirSync(path.dirname(ORDERS_FILE), { recursive: true });
-  fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2));
-  return order;
-}
-
-function markPaid(order, details) {
-  if (order.status === "paid") return order;
-  return saveOrder({ ...order, status: "paid", paidAt: new Date().toISOString(), payment: { ...order.payment, ...details } });
-}
-
-const publicOrder = (o) => ({
-  number: o.number,
-  status: o.status,
-  method: o.method,
-  total: o.total,
-  items: o.items.map(({ name, qty }) => ({ name, qty })),
-});
-
 // ---------- Туслах ----------
+
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Frame-Options": "SAMEORIGIN",
+};
 
 function send(res, status, body, headers = {}) {
   const isJson = typeof body !== "string" && !Buffer.isBuffer(body);
-  res.writeHead(status, { "Content-Type": isJson ? "application/json; charset=utf-8" : "text/plain; charset=utf-8", ...headers });
+  res.writeHead(status, {
+    ...SECURITY_HEADERS,
+    "Content-Type": isJson ? "application/json; charset=utf-8" : "text/plain; charset=utf-8",
+    "Cache-Control": "no-store",
+    ...headers,
+  });
   res.end(isJson ? JSON.stringify(body) : body);
 }
 
-function readBody(req) {
+function readBody(req, limit = 2e5) {
   return new Promise((resolve, reject) => {
-    let raw = "";
+    const chunks = [];
+    let size = 0;
     req.on("data", (chunk) => {
-      raw += chunk;
-      if (raw.length > 1e5) reject(new Error("Хүсэлт хэт том байна"));
+      size += chunk.length;
+      if (size > limit) {
+        reject(Object.assign(new Error("Хүсэлт хэт том байна"), { status: 413 }));
+        req.destroy();
+      } else chunks.push(chunk);
     });
     req.on("end", () => {
       try {
+        const raw = Buffer.concat(chunks).toString("utf8");
         resolve(raw ? JSON.parse(raw) : {});
       } catch {
-        reject(new Error("JSON буруу байна"));
+        reject(Object.assign(new Error("JSON буруу байна"), { status: 400 }));
       }
     });
+    req.on("error", reject);
   });
 }
 
-function serveStatic(req, res, pathname) {
-  const rel = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
-  const allowed = rel === "index.html" || STATIC_DIRS.some((d) => rel.startsWith(d + "/"));
-  const file = path.join(ROOT, rel);
-  if (!allowed || !file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
-    return send(res, 404, "Олдсонгүй");
-  }
-  res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
+function serveFile(res, file, cache = "public, max-age=300") {
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, "Олдсонгүй");
+  res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": MIME[path.extname(file).toLowerCase()] || "application/octet-stream", "Cache-Control": cache });
   fs.createReadStream(file).pipe(res);
 }
 
-// ---------- Захиалга үүсгэх ----------
-
-// Гүйлгээний утга дээр бичихэд богино, таахад хэцүү дугаар: LFC-7K2M9QX
-function newOrderNumber() {
-  const existing = readOrders();
-  const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-  let number;
-  do {
-    number = "LFC-" + Array.from(crypto.randomBytes(7), (b) => alphabet[b % alphabet.length]).join("");
-  } while (existing[number]);
-  return number;
+function serveStatic(res, pathname) {
+  const rel = decodeURIComponent(pathname).replace(/^\/+/, "");
+  if (rel.startsWith("uploads/")) {
+    const file = path.join(store.UPLOADS_DIR, rel.slice("uploads/".length));
+    if (!file.startsWith(store.UPLOADS_DIR + path.sep)) return send(res, 404, "Олдсонгүй");
+    return serveFile(res, file, "public, max-age=31536000, immutable");
+  }
+  const allowed = STATIC_FILES.includes(rel) || STATIC_DIRS.some((d) => rel.startsWith(d + "/"));
+  const file = path.join(ROOT, rel);
+  if (!allowed || !file.startsWith(ROOT + path.sep)) return send(res, 404, "Олдсонгүй");
+  return serveFile(res, file, rel.endsWith(".html") ? "no-cache" : "public, max-age=300");
 }
 
-function buildOrder(body) {
-  const { SHOP, PRODUCTS, PAYMENT_METHODS } = loadCatalog();
-  const byId = Object.fromEntries(PRODUCTS.map((p) => [p.id, p]));
+const escapeAttr = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const absolute = (p) => (/^https?:\/\//.test(p) ? p : `${PUBLIC_URL}/${p.replace(/^\/+/, "")}`);
 
-  const items = (Array.isArray(body.items) ? body.items : []).map((line) => {
-    const p = byId[line.id];
-    const qty = Math.floor(Number(line.qty));
-    if (!p || p.price == null || !(qty >= 1 && qty <= 99)) throw new Error("Сагсан дахь бараа буруу байна");
-    return { id: p.id, name: p.name, price: p.price, qty };
-  });
-  if (!items.length) throw new Error("Сагс хоосон байна");
-
-  const c = body.customer || {};
-  const customer = {
-    name: String(c.name || "").trim().slice(0, 100),
-    phone: String(c.phone || "").trim().slice(0, 30),
-    address: String(c.address || "").trim().slice(0, 300),
-    date: String(c.date || "").slice(0, 10),
-    note: String(c.note || "").trim().slice(0, 1000),
-  };
-  if (!customer.name || !/^[0-9+\s-]{8,}$/.test(customer.phone) || !customer.address || !customer.date) {
-    throw new Error("Захиалагчийн мэдээлэл дутуу байна");
-  }
-
-  const method = PAYMENT_METHODS.find((m) => m.id === body.method);
-  if (!method) throw new Error("Төлбөрийн хэлбэр буруу байна");
-
-  const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
-  const delivery = subtotal >= SHOP.freeDeliveryFrom ? 0 : SHOP.deliveryFee;
-  const total = subtotal + delivery;
-  if (method.minAmount && total < method.minAmount) throw new Error(`${method.name}: ${method.minAmount.toLocaleString("en-US")}₮-с дээш захиалгад боломжтой`);
-
-  return {
-    number: newOrderNumber(),
-    createdAt: new Date().toISOString(),
-    status: "pending",
-    method: method.id,
-    customer,
-    items,
-    subtotal,
-    delivery,
-    total,
-    payment: {},
-  };
+// Нүүр хуудас — ?product=<id> бол Facebook, Google-д тухайн барааны гарчиг, зураг харагдана.
+function serveIndex(res, url) {
+  const settings = store.getSettings();
+  const product = store.publicProducts().find((p) => p.id === url.searchParams.get("product"));
+  const title = product ? `${product.name} — ${settings.name}` : `${settings.name} — Ургамал, цэцгийн дэлгүүр`;
+  const description = product ? product.desc : settings.tagline;
+  const image = absolute(product?.image || "assets/Lotus_flow_craft_logo_new.svg");
+  const pageUrl = product ? `${PUBLIC_URL}/?product=${encodeURIComponent(product.id)}` : `${PUBLIC_URL}/`;
+  const meta = [
+    `<title>${escapeAttr(title)}</title>`,
+    `<meta name="description" content="${escapeAttr(description)}">`,
+    `<link rel="canonical" href="${escapeAttr(pageUrl)}">`,
+    `<meta property="og:type" content="${product ? "product" : "website"}">`,
+    `<meta property="og:site_name" content="${escapeAttr(settings.name)}">`,
+    `<meta property="og:title" content="${escapeAttr(title)}">`,
+    `<meta property="og:description" content="${escapeAttr(description)}">`,
+    `<meta property="og:image" content="${escapeAttr(image)}">`,
+    `<meta property="og:url" content="${escapeAttr(pageUrl)}">`,
+    product?.price != null ? `<meta property="product:price:amount" content="${product.price}"><meta property="product:price:currency" content="MNT">` : "",
+  ].join("\n  ");
+  const html = fs
+    .readFileSync(path.join(ROOT, "index.html"), "utf8")
+    .replace(/<!-- meta:start -->[\s\S]*?<!-- meta:end -->/, meta);
+  send(res, 200, html, { "Content-Type": MIME[".html"], "Cache-Control": "no-cache" });
 }
 
-async function createOrder(body) {
-  const order = buildOrder(body);
-  const response = { order: null };
-
-  if (order.method === "qpay" && qpay.enabled) {
-    const invoice = await qpay.createInvoice({
-      orderNumber: order.number,
-      amount: order.total,
-      description: `Lotus Flower Craft ${order.number}`,
-      callbackUrl: `${PUBLIC_URL}/api/payments/qpay/callback?order=${order.number}`,
-    });
-    order.payment = { provider: "qpay", invoiceId: invoice.invoiceId };
-    response.qpay = { qrImage: invoice.qrImage, qrText: invoice.qrText, shortUrl: invoice.shortUrl, urls: invoice.urls };
-  } else if ((order.method === "card" || order.method === "socialpay") && golomt.enabled) {
-    const transactionId = order.number.replace(/-/g, "");
-    const invoice = await golomt.createInvoice({
-      transactionId,
-      amount: order.total,
-      via: order.method,
-      callbackUrl: `${PUBLIC_URL}/api/payments/golomt/return?order=${order.number}`,
-    });
-    order.payment = { provider: "golomt", transactionId, invoice: invoice.invoice };
-    response.redirectUrl = invoice.redirectUrl;
-  } else if (order.method === "card" || order.method === "socialpay") {
-    throw new Error("Энэ төлбөрийн хэлбэр одоогоор идэвхгүй байна");
-  }
-  // Бусад (данс, тогтмол QPay QR, Storepay, хүргэлтээр) — дэлгүүр гараар баталгаажуулна.
-
-  saveOrder(order);
-  response.order = publicOrder(order);
-  return response;
-}
-
-async function refreshPayment(order) {
-  if (order.status !== "pending") return order;
-  if (order.payment.provider === "qpay") {
-    const { paidAmount, paymentIds } = await qpay.checkPayment(order.payment.invoiceId);
-    if (paidAmount >= order.total) return markPaid(order, { paymentIds });
-  }
-  if (order.payment.provider === "golomt") {
-    const result = await golomt.inquiry(order.payment.transactionId);
-    if (result.paid && result.amount >= order.total) return markPaid(order, { bankResponse: result.raw });
-  }
-  return order;
+function sitemap() {
+  const urls = [`${PUBLIC_URL}/`, ...store.publicProducts().map((p) => `${PUBLIC_URL}/?product=${encodeURIComponent(p.id)}`)];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+    .map((u) => `  <url><loc>${escapeAttr(u)}</loc></url>`)
+    .join("\n")}\n</urlset>\n`;
 }
 
 // ---------- Router ----------
@@ -219,58 +143,87 @@ async function refreshPayment(order) {
 async function handle(req, res) {
   const url = new URL(req.url, PUBLIC_URL);
   const { pathname } = url;
+  const method = req.method;
 
-  if (pathname === "/api/config" && req.method === "GET") {
-    return send(res, 200, { server: true, qpay: qpay.enabled, golomt: golomt.enabled });
+  if (await admin.handle(req, res, url, { send, readBody, secure: SECURE })) return;
+
+  if (pathname === "/api/catalog" && method === "GET") {
+    const { CATEGORIES, PAGES } = store.loadSiteData();
+    return send(res, 200, {
+      config: { server: true, qpay: qpay.enabled, golomt: golomt.enabled },
+      shop: store.getSettings(),
+      categories: CATEGORIES,
+      pages: PAGES,
+      products: store.publicProducts(),
+    });
   }
 
-  if (pathname === "/api/orders" && req.method === "POST") {
+  if (pathname === "/api/quote" && method === "POST") {
     try {
-      return send(res, 201, await createOrder(await readBody(req)));
+      return send(res, 200, orders.quote(await readBody(req)));
     } catch (err) {
-      console.error(err);
       return send(res, 400, { error: err.message });
     }
   }
 
-  const orderMatch = pathname.match(/^\/api\/orders\/(LFC-[A-Z0-9-]+)$/);
-  if (orderMatch && req.method === "GET") {
-    let order = readOrders()[orderMatch[1]];
+  if (pathname === "/api/orders" && method === "POST") {
+    try {
+      return send(res, 201, await orders.createOrder(await readBody(req), PUBLIC_URL));
+    } catch (err) {
+      return send(res, err.status || 400, { error: err.message });
+    }
+  }
+
+  if (pathname === "/api/orders/track" && method === "GET") {
+    const order = orders.track(url.searchParams.get("number"), url.searchParams.get("phone"));
+    return order ? send(res, 200, order) : send(res, 404, { error: "Захиалга олдсонгүй. Дугаар, утсаа шалгана уу." });
+  }
+
+  const orderMatch = pathname.match(/^\/api\/orders\/(LFC-[A-Z0-9]+)$/);
+  if (orderMatch && method === "GET") {
+    let order = store.readOrders()[orderMatch[1]];
     if (!order) return send(res, 404, { error: "Захиалга олдсонгүй" });
     // Төлөвийг зөвхөн хэрэглэгч "шалгах" дарсан үед банкнаас асууна (QPay давтан poll хийхийг хориглодог).
-    if (url.searchParams.get("check") === "1") {
-      try {
-        order = await refreshPayment(order);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    return send(res, 200, publicOrder(order));
+    if (url.searchParams.get("check") === "1") order = await orders.refreshPayment(order).catch((err) => (console.error(err), order));
+    return send(res, 200, orders.publicOrder(order));
   }
 
   if (pathname === "/api/payments/qpay/callback") {
-    const order = readOrders()[url.searchParams.get("order")];
-    if (order) await refreshPayment(order).catch(console.error);
+    const order = store.readOrders()[url.searchParams.get("order")];
+    if (order) await orders.refreshPayment(order).catch(console.error);
     return send(res, 200, "SUCCESS");
   }
 
   if (pathname === "/api/payments/golomt/return") {
-    const number = url.searchParams.get("order");
-    let order = readOrders()[number];
-    if (order) order = await refreshPayment(order).catch((err) => (console.error(err), order));
+    const number = url.searchParams.get("order") || "";
+    let order = store.readOrders()[number];
+    if (order) order = await orders.refreshPayment(order).catch((err) => (console.error(err), order));
     const status = order?.status === "paid" ? "paid" : "failed";
-    res.writeHead(302, { Location: `/?order=${encodeURIComponent(number || "")}&payment=${status}` });
+    res.writeHead(302, { Location: `/?order=${encodeURIComponent(number)}&payment=${status}` });
     return res.end();
   }
 
   if (pathname.startsWith("/api/")) return send(res, 404, { error: "Олдсонгүй" });
-  if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Method not allowed");
-  return serveStatic(req, res, pathname);
+  if (method !== "GET" && method !== "HEAD") return send(res, 405, "Method not allowed");
+
+  if (pathname === "/" || pathname === "/index.html") return serveIndex(res, url);
+  if (pathname === "/admin") return res.writeHead(301, { Location: "/admin.html" }), res.end();
+  if (pathname === "/robots.txt") {
+    return send(res, 200, `User-agent: *\nDisallow: /admin.html\nDisallow: /api/\nSitemap: ${PUBLIC_URL}/sitemap.xml\n`);
+  }
+  if (pathname === "/sitemap.xml") return send(res, 200, sitemap(), { "Content-Type": MIME[".xml"] });
+  return serveStatic(res, pathname);
 }
 
 http
-  .createServer((req, res) => handle(req, res).catch((err) => (console.error(err), send(res, 500, { error: "Серверийн алдаа" }))))
+  .createServer((req, res) =>
+    handle(req, res).catch((err) => {
+      console.error(err);
+      if (!res.headersSent) send(res, err.status || 500, { error: err.status ? err.message : "Серверийн алдаа" });
+    })
+  )
   .listen(PORT, () => {
-    console.log(`Lotus Flower Craft: ${PUBLIC_URL}`);
-    console.log(`QPay: ${qpay.enabled ? "идэвхтэй" : "тохируулаагүй"}, Голомт (карт/SocialPay): ${golomt.enabled ? "идэвхтэй" : "тохируулаагүй"}`);
+    const on = (v) => (v ? "идэвхтэй" : "тохируулаагүй");
+    console.log(`Lotus Flower Craft: ${PUBLIC_URL}   Админ: ${PUBLIC_URL}/admin.html`);
+    console.log(`Админ: ${on(admin.enabled)} · QPay: ${on(qpay.enabled)} · Голомт: ${on(golomt.enabled)} · Telegram: ${on(notify.enabled)}`);
   });

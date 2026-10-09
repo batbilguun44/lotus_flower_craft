@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Админ — Lotus Flower Craft</title>
+  <link rel="icon" href="assets/Lotus_flow_craft_logo_new.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin">
+  <!-- Нэвтрэх -->
+  <section class="login" data-login hidden>
+    <form class="login-card" data-login-form>
+      <img src="assets/Lotus_flow_craft_logo_new.svg" alt="" width="64" height="64">
+      <h1>Админ</h1>
+      <label>Нууц үг<input class="input" type="password" name="password" required autocomplete="current-password" autofocus></label>
+      <p class="form-error" data-login-error hidden></p>
+      <button class="btn btn-primary btn-block" type="submit">Нэвтрэх</button>
+      <a class="muted small" href="./">← Дэлгүүр рүү буцах</a>
+    </form>
+  </section>
+
+  <!-- Үндсэн -->
+  <div class="admin-shell" data-shell hidden>
+    <aside class="sidebar">
+      <a class="brand" href="./" target="_blank" rel="noopener">
+        <img src="assets/Lotus_flow_craft_logo_new.svg" alt="" width="36" height="36">
+        <span class="brand-name">Lotus Admin</span>
+      </a>
+      <nav class="admin-nav" aria-label="Админ цэс">
+        <a href="#dashboard" data-tab="dashboard">Тойм</a>
+        <a href="#orders" data-tab="orders">Захиалга <span class="nav-badge" data-pending-count hidden></span></a>
+        <a href="#products" data-tab="products">Бараа</a>
+        <a href="#promos" data-tab="promos">Промо код</a>
+        <a href="#settings" data-tab="settings">Тохиргоо</a>
+      </nav>
+      <div class="sidebar-foot">
+        <a class="link small" href="./" target="_blank" rel="noopener">Дэлгүүр харах ↗</a>
+        <button class="link small" type="button" data-logout>Гарах</button>
+      </div>
+    </aside>
+    <main class="admin-main" data-view></main>
+  </div>
+
+  <!-- Бараа засах -->
+  <dialog class="modal" data-product-dialog>
+    <button class="modal-close" type="button" data-close aria-label="Хаах">×</button>
+    <form class="checkout admin-form" data-product-form novalidate>
+      <h2 data-product-title>Бараа</h2>
+      <div class="product-editor">
+        <div class="image-field">
+          <div class="image-preview" data-image-preview></div>
+          <label class="btn btn-ghost btn-small file-btn">Зураг оруулах<input type="file" accept="image/jpeg,image/png,image/webp" data-image-input hidden></label>
+          <button class="link small muted" type="button" data-image-remove>Зураг устгах</button>
+          <p class="hint small muted" data-image-status></p>
+          <div data-illustration-fields>
+            <label>Зураггүй үеийн дүрс
+              <select class="input" name="shape">
+                <option value="leaf">Навчит ургамал</option>
+                <option value="flower">Цэцэг</option>
+                <option value="cactus">Кактус</option>
+              </select>
+            </label>
+            <div class="color-row">
+              <label>Өнгө 1<input type="color" name="color1"></label>
+              <label>Өнгө 2<input type="color" name="color2"></label>
+            </div>
+          </div>
+        </div>
+        <div class="form-grid">
+          <label class="span-2">Нэр *<input class="input" name="name" required maxlength="120"></label>
+          <label>Ангилал *<select class="input" name="category" required data-category-select></select></label>
+          <label>Шошго<input class="input" name="badge" maxlength="40" placeholder="Шинэ, Бэлэгт, #алтанмод…"></label>
+          <label>Үнэ (₮)<input class="input" name="price" type="number" min="0" step="100" placeholder="Хоосон = үнэ тохиролцоно"></label>
+          <label>Үлдэгдэл<input class="input" name="stock" type="number" min="0" step="1" placeholder="Хоосон = хязгааргүй"></label>
+          <label class="span-2">Тайлбар<textarea class="input" name="desc" rows="4" maxlength="2000"></textarea></label>
+          <label>Арчилгаа<input class="input" name="care" maxlength="60" placeholder="Хялбар"></label>
+          <label>Гэрэл<input class="input" name="light" maxlength="60" placeholder="Сарнисан гэрэл"></label>
+          <label>Усалгаа<input class="input" name="water" maxlength="60" placeholder="Долоо хоногт нэг"></label>
+          <label class="check"><input type="checkbox" name="active"> Дэлгүүрт харуулах</label>
+        </div>
+      </div>
+      <p class="form-error" data-product-error hidden></p>
+      <div class="detail-actions end">
+        <button class="btn btn-ghost" type="button" data-close>Болих</button>
+        <button class="btn btn-primary" type="submit">Хадгалах</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
