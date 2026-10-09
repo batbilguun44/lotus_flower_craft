@@ -1,0 +1,11 @@
+{
+  "name": "lotus-flower-craft",
+  "private": true,
+  "description": "Lotus Flower Craft онлайн дэлгүүр",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

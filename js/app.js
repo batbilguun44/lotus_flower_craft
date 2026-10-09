@@ -286,7 +286,55 @@
     document.body.classList.remove("no-scroll");
   }
 
-  // ---------- Захиалга ----------
+  // ---------- Захиалга ба төлбөр ----------
+
+  // Сервер (server/server.js) ажиллаж байвал QPay, Голомт идэвхжинэ; статик байршуулалтад зөвхөн гар төлбөр.
+  let payConfig = { server: false, qpay: false, golomt: false };
+
+  async function loadPayConfig() {
+    try {
+      const res = await fetch("api/config");
+      if (res.ok && res.headers.get("content-type")?.includes("json")) payConfig = await res.json();
+    } catch {
+      /* статик горим */
+    }
+  }
+
+  const methodById = Object.fromEntries(PAYMENT_METHODS.map((m) => [m.id, m]));
+
+  // "invoice" — QPay нэхэмжлэх, "redirect" — Голомт хуудас, "static-qr" — тогтмол QR, "manual" — гар баталгаажуулалт
+  function methodMode(m) {
+    if (m.requires === "qpay") return payConfig.qpay ? "invoice" : SHOP.qpayStaticQr ? "static-qr" : null;
+    if (m.requires === "golomt") return payConfig.golomt ? "redirect" : null;
+    return m.manual ? "manual" : null;
+  }
+
+  function renderPaymentMethods(total) {
+    const box = $("[data-payment-methods]");
+    const current = box.querySelector("input:checked")?.value;
+    const available = PAYMENT_METHODS.filter(methodMode);
+    const usable = (m) => !m.minAmount || total >= m.minAmount;
+    const selected = available.find((m) => m.id === current && usable(m)) || available.find(usable);
+
+    box.innerHTML = available
+      .map((m) => {
+        const disabled = !usable(m);
+        return `<label class="pay-option${disabled ? " is-disabled" : ""}">
+          <input type="radio" name="method" value="${m.id}" ${m === selected ? "checked" : ""} ${disabled ? "disabled" : ""} required>
+          <span class="pay-logo pay-${m.id}" aria-hidden="true">${payLogo(m.id)}</span>
+          <span class="pay-text">
+            <strong>${escapeHtml(m.name)}</strong>
+            <small>${escapeHtml(disabled ? `${formatPrice(m.minAmount)}-с дээш захиалгад боломжтой.` : m.note)}</small>
+          </span>
+        </label>`;
+      })
+      .join("");
+  }
+
+  function payLogo(id) {
+    const text = { qpay: "QPay", socialpay: "Social", card: "VISA", transfer: "₮", storepay: "Store", cash: "Бэлэн" }[id];
+    return `<span>${text}</span>`;
+  }
 
   function openCheckout() {
     closeCart();
@@ -301,6 +349,7 @@
     form.date.min = new Date().toISOString().slice(0, 10);
     if (!form.date.value) form.date.value = tomorrow.toISOString().slice(0, 10);
 
+    renderPaymentMethods(t.total);
     $("[data-checkout-summary]").innerHTML = `
       <ul>${cart.map((l) => `<li><span>${escapeHtml(productById[l.id].name)} × ${l.qty}</span><span>${formatPrice(productById[l.id].price * l.qty)}</span></li>`).join("")}</ul>
       <div class="summary-row muted"><span>Хүргэлт</span><span>${t.delivery === 0 ? "Үнэгүй" : formatPrice(t.delivery)}</span></div>
@@ -308,67 +357,234 @@
     modal.showModal();
   }
 
-  function submitOrder(e) {
+  function showFormError(message) {
+    const error = $("[data-form-error]");
+    error.textContent = message;
+    error.hidden = false;
+  }
+
+  async function submitOrder(e) {
     e.preventDefault();
     const form = e.currentTarget;
-    const error = $("[data-form-error]");
+    $("[data-form-error]").hidden = true;
     if (!form.checkValidity()) {
-      error.textContent = "Нэр, утас, хаяг, хүргэх огноогоо зөв бөглөнө үү.";
-      error.hidden = false;
+      showFormError("Нэр, утас, хаяг, хүргэх огноо, төлбөрийн хэлбэрээ зөв бөглөнө үү.");
       form.querySelector(":invalid")?.focus();
       return;
     }
 
     const data = Object.fromEntries(new FormData(form));
+    const method = methodById[data.method];
+    const mode = methodMode(method);
+    const items = cart.map((l) => ({ id: l.id, qty: l.qty }));
     const t = totals();
-    const order = {
-      number: "LFC-" + Date.now().toString(36).toUpperCase(),
-      createdAt: new Date().toISOString(),
-      customer: data,
-      items: cart.map((l) => ({ id: l.id, name: productById[l.id].name, qty: l.qty, price: productById[l.id].price })),
-      ...t,
-    };
-    storage.set(ORDERS_KEY, [...storage.get(ORDERS_KEY, []), order]);
+    const submit = form.querySelector("[type=submit]");
+    let order;
+    let qpayInvoice = null;
+
+    if (payConfig.server) {
+      submit.disabled = true;
+      submit.textContent = "Илгээж байна…";
+      try {
+        const res = await fetch("api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items, customer: data, method: method.id }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Захиалга илгээхэд алдаа гарлаа");
+        order = body.order;
+        qpayInvoice = body.qpay || null;
+        if (body.redirectUrl) {
+          clearCart(form);
+          location.href = body.redirectUrl;
+          return;
+        }
+      } catch (err) {
+        showFormError(err.message || "Сүлжээний алдаа. Дахин оролдоно уу.");
+        return;
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "Захиалга баталгаажуулах";
+      }
+    } else {
+      order = {
+        number: "LFC-" + Array.from(crypto.getRandomValues(new Uint8Array(7)), (b) => "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"[b % 32]).join(""),
+        status: "pending",
+        method: method.id,
+        total: t.total,
+        items: cart.map((l) => ({ name: productById[l.id].name, qty: l.qty })),
+      };
+    }
 
     const summaryText = [
       `Захиалга ${order.number}`,
-      ...order.items.map((i) => `- ${i.name} × ${i.qty} = ${formatPrice(i.price * i.qty)}`),
+      ...cart.map((l) => `- ${productById[l.id].name} × ${l.qty} = ${formatPrice(productById[l.id].price * l.qty)}`),
       `Хүргэлт: ${t.delivery === 0 ? "Үнэгүй" : formatPrice(t.delivery)}`,
-      `Нийт: ${formatPrice(t.total)}`,
+      `Нийт: ${formatPrice(order.total)}`,
       `Нэр: ${data.name}, Утас: ${data.phone}`,
       `Хаяг: ${data.address}`,
-      `Огноо: ${data.date}, Төлбөр: ${data.payment}`,
+      `Огноо: ${data.date}, Төлбөр: ${method.name}`,
       data.note ? `Тайлбар: ${data.note}` : "",
     ]
       .filter(Boolean)
       .join("\n");
 
+    storage.set(ORDERS_KEY, [...storage.get(ORDERS_KEY, []), { ...order, createdAt: new Date().toISOString(), summaryText }]);
+    clearCart(form);
+
+    if (qpayInvoice) showQPayStep(order, qpayInvoice);
+    else showConfirmation(order, mode, summaryText, data.phone);
+  }
+
+  function clearCart(form) {
     cart = [];
     saveCart();
     form.reset();
     form.hidden = true;
+  }
 
-    const confirmation = $("[data-confirmation]");
-    confirmation.innerHTML = `
+  function showPanel(html) {
+    const panel = $("[data-confirmation]");
+    panel.innerHTML = html;
+    panel.hidden = false;
+    $("[data-checkout-form]").hidden = true;
+    const modal = $("[data-checkout-modal]");
+    if (!modal.open) modal.showModal();
+    $$("[data-close]", panel).forEach((b) => b.addEventListener("click", () => closeDialog(modal)));
+    $$("[data-copy-text]", panel).forEach((b) =>
+      b.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(b.dataset.copyText);
+          toast("Хуулагдлаа");
+        } catch {
+          toast(b.dataset.copyText);
+        }
+      })
+    );
+    return panel;
+  }
+
+  const copyButton = (text, label = "Хуулах") =>
+    `<button class="btn btn-ghost btn-small" type="button" data-copy-text="${escapeHtml(text)}">${label}</button>`;
+
+  function paymentInstructions(order, mode) {
+    const amount = formatPrice(order.total);
+    if (order.method === "transfer") {
+      return `<div class="pay-box">
+        <p>Доорх дансны аль нэг рүү <strong>${amount}</strong> шилжүүлж, гүйлгээний утга дээр <strong>${order.number}</strong> гэж бичнэ үү.</p>
+        ${SHOP.bankAccounts
+          .map(
+            (a) => `<div class="bank-row">
+              <span>${escapeHtml(a.bank)} · ${escapeHtml(a.holder)}<br><span class="bank-acc">${escapeHtml(a.account)}</span></span>
+              ${copyButton(a.account)}
+            </div>`
+          )
+          .join("")}
+        <div class="bank-row"><span>Гүйлгээний утга<br><span class="bank-acc">${order.number}</span></span>${copyButton(order.number)}</div>
+      </div>`;
+    }
+    if (order.method === "qpay" && mode === "static-qr") {
+      return `<div class="pay-box center">
+        <img class="qr" src="${escapeHtml(SHOP.qpayStaticQr)}" alt="QPay QR код">
+        <p>Банкны апп-аараа QR уншуулж <strong>${amount}</strong> төлнө үү. Гүйлгээний утга: <strong>${order.number}</strong></p>
+      </div>`;
+    }
+    if (order.method === "storepay") {
+      return `<div class="pay-box"><p>Бид таны Storepay-д бүртгэлтэй утасны дугаар руу <strong>${amount}</strong>-ийн нэхэмжлэх илгээнэ. Storepay апп-аа нээж зөвшөөрснөөр захиалга баталгаажна.</p></div>`;
+    }
+    if (order.method === "cash") {
+      return `<div class="pay-box"><p>Бараагаа хүлээн авахдаа <strong>${amount}</strong>-ийг бэлнээр эсвэл картаар төлнө.</p></div>`;
+    }
+    return "";
+  }
+
+  function showConfirmation(order, mode, summaryText, phone) {
+    showPanel(`
       <div class="confirm-icon" aria-hidden="true">✓</div>
       <h2>Захиалга хүлээн авлаа</h2>
       <p>Захиалгын дугаар: <strong>${order.number}</strong></p>
-      <p class="muted">Бид удахгүй ${escapeHtml(data.phone)} дугаарт холбогдож захиалгыг баталгаажуулна. Яаралтай бол ${escapeHtml(SHOP.phone)} руу залгаарай.</p>
-      <textarea class="input order-text" rows="8" readonly>${escapeHtml(summaryText)}</textarea>
+      ${paymentInstructions(order, mode)}
+      <p class="muted">Бид удахгүй ${escapeHtml(phone)} дугаарт холбогдож захиалгыг баталгаажуулна. Яаралтай бол ${escapeHtml(SHOP.phone)} руу залгаарай.</p>
+      <details class="order-details">
+        <summary>Захиалгын дэлгэрэнгүй</summary>
+        <textarea class="input order-text" rows="8" readonly>${escapeHtml(summaryText)}</textarea>
+      </details>
       <div class="detail-actions">
-        <button class="btn btn-ghost" type="button" data-copy>Хуулах</button>
+        ${copyButton(summaryText, "Захиалга хуулах")}
         <button class="btn btn-primary" type="button" data-close>Дуусгах</button>
-      </div>`;
-    confirmation.hidden = false;
-    $("[data-copy]", confirmation).addEventListener("click", async () => {
+      </div>`);
+  }
+
+  function showQPayStep(order, invoice) {
+    const panel = showPanel(`
+      <h2>QPay-ээр төлөх</h2>
+      <p>Захиалга <strong>${order.number}</strong> · Нийт <strong>${formatPrice(order.total)}</strong></p>
+      <div class="pay-box center">
+        <img class="qr" src="data:image/png;base64,${escapeHtml(invoice.qrImage)}" alt="QPay QR код">
+        <p class="muted">Банкны апп-аараа QR кодыг уншуулна уу. Утсаар үзэж байгаа бол доороос банкаа сонгоно уу.</p>
+      </div>
+      <div class="bank-apps">
+        ${invoice.urls
+          .map(
+            (u) => `<a class="bank-app" href="${escapeHtml(u.link)}" rel="noopener">
+              <img src="${escapeHtml(u.logo)}" alt="" loading="lazy"><span>${escapeHtml(u.description || u.name)}</span>
+            </a>`
+          )
+          .join("")}
+      </div>
+      <p class="form-error" data-pay-status hidden></p>
+      <div class="detail-actions">
+        <button class="btn btn-primary" type="button" data-check-payment>Төлбөр шалгах</button>
+        <button class="btn btn-ghost" type="button" data-close>Дараа төлөх</button>
+      </div>`);
+
+    $("[data-check-payment]", panel).addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const status = $("[data-pay-status]", panel);
+      btn.disabled = true;
+      btn.textContent = "Шалгаж байна…";
       try {
-        await navigator.clipboard.writeText(summaryText);
-        toast("Захиалгын мэдээлэл хуулагдлаа");
+        const res = await fetch(`api/orders/${order.number}?check=1`);
+        const latest = await res.json();
+        if (latest.status === "paid") return showPaid(latest);
+        status.textContent = "Төлбөр хараахан орж ирээгүй байна. Төлсний дараа дахин шалгана уу.";
       } catch {
-        $(".order-text", confirmation).select();
+        status.textContent = "Шалгах үед алдаа гарлаа. Дахин оролдоно уу.";
       }
+      status.hidden = false;
+      btn.disabled = false;
+      btn.textContent = "Төлбөр шалгах";
     });
-    $("[data-close]", confirmation).addEventListener("click", () => closeDialog($("[data-checkout-modal]")));
+  }
+
+  function showPaid(order) {
+    showPanel(`
+      <div class="confirm-icon" aria-hidden="true">✓</div>
+      <h2>Төлбөр амжилттай</h2>
+      <p>Захиалга <strong>${escapeHtml(order.number)}</strong> · ${formatPrice(order.total)}</p>
+      <p class="muted">Баярлалаа! Бид удахгүй холбогдож хүргэлтийг тохиролцоно.</p>
+      <div class="detail-actions"><button class="btn btn-primary" type="button" data-close>Дуусгах</button></div>`);
+  }
+
+  // Голомт банкны хуудаснаас буцаж ирэх үед (?order=...&payment=paid|failed)
+  async function handlePaymentReturn() {
+    const params = new URLSearchParams(location.search);
+    const number = params.get("order");
+    if (!number || !params.get("payment")) return;
+    history.replaceState(null, "", location.pathname + location.hash);
+    try {
+      const res = await fetch(`api/orders/${encodeURIComponent(number)}`);
+      const order = await res.json();
+      if (order.status === "paid") return showPaid(order);
+    } catch {
+      /* доорх мессежийг харуулна */
+    }
+    showPanel(`
+      <h2>Төлбөр амжилтгүй</h2>
+      <p>Захиалга <strong>${escapeHtml(number)}</strong>-ийн төлбөр баталгаажсангүй.</p>
+      <p class="muted">Дахин оролдох эсвэл ${escapeHtml(SHOP.phone)} дугаарт холбогдоно уу.</p>
+      <div class="detail-actions"><button class="btn btn-primary" type="button" data-close>Хаах</button></div>`);
   }
 
   // ---------- Туслах ----------
@@ -397,7 +613,7 @@
     $("[data-year]").textContent = new Date().getFullYear();
   }
 
-  function init() {
+  async function init() {
     fillShopInfo();
     renderCategories();
     renderFilters();
@@ -428,6 +644,9 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeCart();
     });
+
+    await loadPayConfig();
+    handlePaymentReturn();
   }
 
   init();

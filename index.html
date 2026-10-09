@@ -165,15 +165,12 @@
         <label>Утас<input class="input" name="phone" required inputmode="tel" autocomplete="tel" pattern="[0-9+\s\-]{8,}"></label>
         <label class="span-2">Хаяг<input class="input" name="address" required autocomplete="street-address" placeholder="Дүүрэг, хороо, байр, тоот"></label>
         <label>Хүргэх огноо<input class="input" type="date" name="date" required></label>
-        <label>Төлбөрийн хэлбэр
-          <select class="input" name="payment">
-            <option>Дансаар шилжүүлэх</option>
-            <option>QPay</option>
-            <option>Бэлнээр (хүргэлтээр)</option>
-          </select>
-        </label>
         <label class="span-2">Нэмэлт тайлбар<textarea class="input" name="note" rows="3" placeholder="Баглааны карт дээрх бичвэр, захиалгат зохиомжийн хүсэлт гэх мэт"></textarea></label>
       </div>
+      <fieldset class="payment-methods">
+        <legend>Төлбөрийн хэлбэр</legend>
+        <div data-payment-methods></div>
+      </fieldset>
       <div class="checkout-summary" data-checkout-summary></div>
       <p class="form-error" data-form-error hidden></p>
       <button class="btn btn-primary btn-block" type="submit">Захиалга баталгаажуулах</button>

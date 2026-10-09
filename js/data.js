@@ -13,7 +13,59 @@ const SHOP = {
   currency: "₮",
   deliveryFee: 5000,
   freeDeliveryFrom: 150000,
+
+  // Дансаар шилжүүлэх үед харагдах данс (түр утга).
+  bankAccounts: [
+    { bank: "Хаан банк", account: "0000000000", holder: "Lotus Flower Craft" },
+    { bank: "Голомт банк", account: "0000000000", holder: "Lotus Flower Craft" },
+  ],
+  // Сервергүй (статик) үед QPay-ийн тогтмол QR зураг. Жишээ: "assets/img/qpay-qr.png".
+  // Хоосон бол сервергүй горимд QPay сонголт харагдахгүй.
+  qpayStaticQr: "",
 };
+
+// Төлбөрийн хэлбэрүүд.
+// requires: "qpay" | "golomt" — server/.env дээр тухайн гэрээний түлхүүр тохируулсан үед л идэвхжинэ.
+// manual: true — төлбөрийг дэлгүүр гараар баталгаажуулна (сервергүй ч ажиллана).
+const PAYMENT_METHODS = [
+  {
+    id: "qpay",
+    name: "QPay",
+    note: "Хаан, Голомт, ХХБ, Төрийн банк, Хас зэрэг бүх банкны апп-аар QR уншуулж төлнө.",
+    requires: "qpay",
+  },
+  {
+    id: "socialpay",
+    name: "SocialPay",
+    note: "Голомт банкны SocialPay апп-аар төлнө.",
+    requires: "golomt",
+  },
+  {
+    id: "card",
+    name: "Карт",
+    note: "Visa, Mastercard, UnionPay — Голомт банкны аюулгүй хуудсаар.",
+    requires: "golomt",
+  },
+  {
+    id: "transfer",
+    name: "Дансаар шилжүүлэх",
+    note: "Гүйлгээний утга дээр захиалгын дугаараа бичнэ үү.",
+    manual: true,
+  },
+  {
+    id: "storepay",
+    name: "Storepay — хуваан төлөх",
+    note: "100,000₮-с дээш худалдан авалтыг хүүгүйгээр 6 хүртэл хуваан төлнө. Storepay-д бүртгэлтэй утас руу тань нэхэмжлэх илгээнэ.",
+    minAmount: 100000,
+    manual: true,
+  },
+  {
+    id: "cash",
+    name: "Хүргэлтээр төлөх",
+    note: "Бараагаа хүлээн авахдаа бэлнээр эсвэл картаар төлнө.",
+    manual: true,
+  },
+];
 
 const CATEGORIES = [
   {
